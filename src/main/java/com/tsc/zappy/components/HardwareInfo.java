@@ -7,14 +7,20 @@ import java.net.UnknownHostException;
 
 import org.springframework.stereotype.Component;
 
+import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 
 @Component
 @Log4j2
 public class HardwareInfo {
 
+    @Getter
     private String localMacAddr;
+
+    @Getter
     private String hostName;
+
+    @Getter
     private NetworkInterface nif;
 
     public HardwareInfo() {
@@ -46,18 +52,6 @@ public class HardwareInfo {
             log.error(e);
             hostName = "UNKNOWN";
         }
-    }
-
-    public String getLocalMacAddr() {
-        return localMacAddr;
-    }
-
-    public NetworkInterface getNif() {
-        return nif;
-    }
-
-    public String getHostName() {
-        return hostName;
     }
 
 }

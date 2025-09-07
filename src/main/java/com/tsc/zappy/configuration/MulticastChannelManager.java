@@ -14,19 +14,16 @@ import org.springframework.context.annotation.Configuration;
 import com.tsc.zappy.components.HardwareInfo;
 import com.tsc.zappy.components.MulticastProperties;
 
+import lombok.AllArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 @Log4j2
 @Configuration
+@AllArgsConstructor
 public class MulticastChannelManager {
 
     private MulticastProperties mProperties;
     private HardwareInfo hwInfo;
-
-    public MulticastChannelManager(HardwareInfo hwInfo, MulticastProperties mProperties) {
-        this.hwInfo = hwInfo;
-        this.mProperties = mProperties;
-    }
 
     @Bean(destroyMethod = "close")
     DatagramChannel channel() {

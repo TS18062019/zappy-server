@@ -13,29 +13,25 @@ import org.springframework.stereotype.Service;
 
 import com.tsc.zappy.components.HardwareInfo;
 import com.tsc.zappy.components.MulticastProperties;
+import com.tsc.zappy.controller.UIWebSocketController;
 import com.tsc.zappy.dto.PeerInfo;
 
 import jakarta.annotation.PostConstruct;
+import lombok.AllArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 @Log4j2
 @Service
+@AllArgsConstructor
 public class MulticastPeerDiscoveryService {
 
     private DatagramChannel channel;
     private ExecutorService service;
     private HardwareInfo hwInfo;
     private MulticastProperties mProperties;
+    private UIWebSocketController uiWebSocketController;
 
     private Map<String, PeerInfo> peerMap = new ConcurrentHashMap<>();
-
-    public MulticastPeerDiscoveryService(DatagramChannel channel, ExecutorService service, HardwareInfo hwInfo,
-            MulticastProperties mProperties) {
-        this.channel = channel;
-        this.service = service;
-        this.hwInfo = hwInfo;
-        this.mProperties = mProperties;
-    }
 
     private void beginAnnounce() {
         String message = String.format("%s[%s] alive", hwInfo.getHostName(), hwInfo.getLocalMacAddr());
@@ -83,6 +79,7 @@ public class MulticastPeerDiscoveryService {
                         entry -> currentTime - entry.getValue().getTimestamp() >= mProperties.getNoResponseTimeOut());
                 peerMap.forEach((k, v) -> log.info("{}, {}, {}", k, v.getName(),
                         v.getIp()));
+                uiWebSocketController.sendToUser(peerMap);
                 Thread.sleep(3000);
             }
         } catch (InterruptedException e) {
