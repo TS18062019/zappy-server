@@ -62,7 +62,9 @@ public class MulticastPeerDiscoveryService {
                 channel.receive(buf);
                 buf.flip();
                 String rcvd = new String(buf.array(), 0, buf.limit());
-                updateMap(objectMapper.readValue(rcvd, DatagramFormat.class));
+                var dgf = objectMapper.readValue(rcvd, DatagramFormat.class);
+                if(hmacUtil.verifyDatagram(dgf))
+                    updateMap(dgf);
             } catch (IOException e) {
                 if (!(e instanceof AsynchronousCloseException))
                     log.error(e);
@@ -78,7 +80,7 @@ public class MulticastPeerDiscoveryService {
                         entry -> currentTime - entry.getValue().getTimestamp() >= mProperties.getNoResponseTimeOut());
                 peerMap.forEach((k, v) -> log.info("{}, {}", k, v.getName()));
                 uiWebSocketController.sendToUser(peerMap);
-                Thread.sleep(3000);
+                Thread.sleep(5000);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
