@@ -2,7 +2,6 @@ package com.tsc.zappy.services;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.DatagramChannel;
@@ -11,35 +10,40 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tsc.zappy.components.HardwareInfo;
+import com.tsc.zappy.components.HmacUtil;
 import com.tsc.zappy.components.MulticastProperties;
 import com.tsc.zappy.controller.UIWebSocketController;
+import com.tsc.zappy.dto.DatagramFormat;
 import com.tsc.zappy.dto.PeerInfo;
 
 import jakarta.annotation.PostConstruct;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 @Log4j2
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class MulticastPeerDiscoveryService {
 
-    private DatagramChannel channel;
-    private ExecutorService service;
-    private HardwareInfo hwInfo;
-    private MulticastProperties mProperties;
-    private UIWebSocketController uiWebSocketController;
+    private final DatagramChannel channel;
+    private final ExecutorService service;
+    private final HardwareInfo hwInfo;
+    private final MulticastProperties mProperties;
+    private final UIWebSocketController uiWebSocketController;
+    private final HmacUtil hmacUtil;
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     private Map<String, PeerInfo> peerMap = new ConcurrentHashMap<>();
 
     private void beginAnnounce() {
-        String message = String.format("%s[%s] alive", hwInfo.getHostName(), hwInfo.getLocalMacAddr());
-        ByteBuffer buf = ByteBuffer.wrap(message.getBytes());
         InetSocketAddress addr = new InetSocketAddress(mProperties.getMulticastAddr(), mProperties.getMulticasrPort());
         try {
             while (channel.isOpen()) {
-                buf.rewind();
+                DatagramFormat dgf = new DatagramFormat(hmacUtil.getNonce(), hwInfo.getHostName(), hwInfo.getServerAddress());
+                hmacUtil.signDatagram(dgf);
+                ByteBuffer buf = ByteBuffer.wrap(objectMapper.writeValueAsString(dgf).getBytes());
                 channel.send(buf, addr);
                 log.info("Broadcast sent!");
                 Thread.sleep(mProperties.getAnnounceIntervalMs());
@@ -51,19 +55,14 @@ public class MulticastPeerDiscoveryService {
     }
 
     private void beginListen() {
-        ByteBuffer buf = ByteBuffer.allocate(128);
+        ByteBuffer buf = ByteBuffer.allocate(192);
         while (channel.isOpen()) {
             try {
                 buf.clear();
-                SocketAddress addr = channel.receive(buf);
+                channel.receive(buf);
                 buf.flip();
                 String rcvd = new String(buf.array(), 0, buf.limit());
-                int idxA = rcvd.indexOf('[');
-                String clientName = rcvd.substring(0, idxA);
-                String clientMac = rcvd.substring(idxA + 1, rcvd.indexOf(']'));
-                if (clientMac.equals(hwInfo.getLocalMacAddr()))
-                    continue;
-                updateMap(clientName, clientMac, addr.toString());
+                updateMap(objectMapper.readValue(rcvd, DatagramFormat.class));
             } catch (IOException e) {
                 if (!(e instanceof AsynchronousCloseException))
                     log.error(e);
@@ -77,8 +76,7 @@ public class MulticastPeerDiscoveryService {
                 long currentTime = System.currentTimeMillis();
                 peerMap.entrySet().removeIf(
                         entry -> currentTime - entry.getValue().getTimestamp() >= mProperties.getNoResponseTimeOut());
-                peerMap.forEach((k, v) -> log.info("{}, {}, {}", k, v.getName(),
-                        v.getIp()));
+                peerMap.forEach((k, v) -> log.info("{}, {}", k, v.getName()));
                 uiWebSocketController.sendToUser(peerMap);
                 Thread.sleep(3000);
             }
@@ -103,9 +101,11 @@ public class MulticastPeerDiscoveryService {
      * If a peer is new, add it otherwise update it's timestamp. If it's not heard
      * from within timeout, remove it.
      */
-    private void updateMap(String clientName, String clientMac, String ip) {
+    private void updateMap(DatagramFormat dgf) {
+        if(hwInfo.getServerAddress().equals(dgf.getAddress()))
+            return;
         long currentTime = System.currentTimeMillis();
-        peerMap.merge(clientMac, new PeerInfo(clientName, ip, currentTime), (oldVal, newVal) -> {
+        peerMap.merge(dgf.getAddress(), new PeerInfo(dgf.getName(), currentTime), (oldVal, newVal) -> {
             oldVal.setTimestamp(currentTime);
             return oldVal;
         });

@@ -33,7 +33,7 @@ public class TransferMap {
     }
 
     /**
-     * Remove after the transfer is successful
+     * Remove after the transfer is successful / cancelled
      */
     public void remove(String key) {
         tMap.remove(key);

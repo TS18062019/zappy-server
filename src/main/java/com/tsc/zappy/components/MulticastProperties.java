@@ -3,22 +3,24 @@ package com.tsc.zappy.components;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 @Component
-@Data
+@Getter
+@Setter
 public class MulticastProperties {
     
     @Value("${multicast.addr}")
-    private final String multicastAddr;
+    private String multicastAddr;
 
     @Value("${multicast.port}")
-    private final int multicasrPort;
+    private int multicasrPort;
 
     @Value("${multicast.announce_interval}")
-    private final long announceIntervalMs;
+    private long announceIntervalMs;
 
     @Value("${multicast.no_response_timeout}")
-    private final long noResponseTimeOut;
+    private long noResponseTimeOut;
     
 }
