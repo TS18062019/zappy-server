@@ -22,5 +22,8 @@ public class MulticastProperties {
 
     @Value("${multicast.no_response_timeout}")
     private long noResponseTimeOut;
+
+    @Value("${multicast.peers_refresh_interval}")
+    private long peersRefreshInterval;
     
 }

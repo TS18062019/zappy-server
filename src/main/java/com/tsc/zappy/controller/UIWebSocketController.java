@@ -9,6 +9,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import com.tsc.zappy.dto.PeerInfo;
+import com.tsc.zappy.services.FileSenderService;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -19,10 +20,12 @@ import lombok.extern.log4j.Log4j2;
 public class UIWebSocketController {
     
     private SimpMessagingTemplate sTemplate;
+    private FileSenderService senderService;
 
     @MessageMapping("/files")
-    public void processFileMetaData(Set<String> listOfFiles) {
-        log.info(listOfFiles.size());
+    public void processFileMetaData(String ip, Set<String> listOfFiles) {
+        log.info("Notifying {} for {} files", ip, listOfFiles.size());
+        senderService.notify(ip, listOfFiles);
     }
 
     public void sendToUser(Map<String, PeerInfo> peerMap) {

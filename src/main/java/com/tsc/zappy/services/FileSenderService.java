@@ -36,9 +36,9 @@ public class FileSenderService {
      * Do not wait for confirmation here
      */
     public void notify(String url, Set<String> fileSet) {
-        map.add(url, fileSet);
-        var response = restTemplate.postForObject(url, fileSet, HttpStatus.class);
-        log.info(response.value());
+        var response = restTemplate.postForEntity(url, fileSet, String.class);
+        if(response.getStatusCode() == HttpStatus.OK)
+            map.add(url, fileSet);
     }
 
     public void sendToClient(String uuid) {

@@ -65,6 +65,8 @@ public class MulticastPeerDiscoveryService {
                 var dgf = objectMapper.readValue(rcvd, DatagramFormat.class);
                 if(hmacUtil.verifyDatagram(dgf))
                     updateMap(dgf);
+                else 
+                    log.info("Device {}, Ip: {} rejected due to HMAC verification failure", dgf.getName(), dgf.getAddress());
             } catch (IOException e) {
                 if (!(e instanceof AsynchronousCloseException))
                     log.error(e);
@@ -80,7 +82,7 @@ public class MulticastPeerDiscoveryService {
                         entry -> currentTime - entry.getValue().getTimestamp() >= mProperties.getNoResponseTimeOut());
                 peerMap.forEach((k, v) -> log.info("{}, {}", k, v.getName()));
                 uiWebSocketController.sendToUser(peerMap);
-                Thread.sleep(5000);
+                Thread.sleep(mProperties.getPeersRefreshInterval());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
