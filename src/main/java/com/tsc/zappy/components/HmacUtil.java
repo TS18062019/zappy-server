@@ -55,4 +55,9 @@ public class HmacUtil {
             return false;
         return expectedSignature.equals(sign(nonce+"|"+addr));
     }
+
+    public boolean verify(String deviceId, String signature) {
+        String calculatedSignature = sign(deviceId);
+        return signature.equals(calculatedSignature);
+    }
 }
