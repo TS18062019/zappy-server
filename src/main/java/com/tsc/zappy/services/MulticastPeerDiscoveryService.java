@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tsc.zappy.components.HardwareInfo;
 import com.tsc.zappy.components.HmacUtil;
 import com.tsc.zappy.components.MulticastProperties;
+import com.tsc.zappy.components.PeerMapProvider;
 import com.tsc.zappy.dto.DatagramFormat;
 import com.tsc.zappy.dto.PeerInfo;
 
@@ -29,14 +30,14 @@ public class MulticastPeerDiscoveryService {
     private final HardwareInfo hwInfo;
     private final MulticastProperties mProperties;
     private final HmacUtil hmacUtil;
-    private final PeerMapProviderService peerMapProviderService;
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private final PeerMapProvider peerMapProvider;
+    private final ObjectMapper objectMapper;
 
     private void beginAnnounce() {
         InetSocketAddress addr = new InetSocketAddress(mProperties.getMulticastAddr(), mProperties.getMulticasrPort());
         try {
             while (channel.isOpen()) {
-                DatagramFormat dgf = new DatagramFormat(hmacUtil.getNonce(), hwInfo.getHostName(), hwInfo.getServerAddress());
+                DatagramFormat dgf = new DatagramFormat(hwInfo.getDeviceId(), hwInfo.getHostName(), hwInfo.getServerAddress());
                 hmacUtil.signDatagram(dgf);
                 ByteBuffer buf = ByteBuffer.wrap(objectMapper.writeValueAsString(dgf).getBytes());
                 channel.send(buf, addr);
@@ -71,13 +72,13 @@ public class MulticastPeerDiscoveryService {
 
     private void listDevices() {
         final long refreshInterval = mProperties.getPeersRefreshInterval();
-        var peerMap = peerMapProviderService.getPeerMap();
+        var peerMap = peerMapProvider.getPeerMap();
         try {
             while (channel.isOpen()) {
                 long currentTime = System.currentTimeMillis();
                 peerMap.entrySet().removeIf(
                         entry -> currentTime - entry.getValue().getTimestamp() >= mProperties.getNoResponseTimeOut());
-                peerMap.forEach((k, v) -> log.info("{}, {}", k, v.getName()));
+                peerMap.forEach((k, v) -> log.info("{}, {}", v.getName(), v.getIpAddr()));
                 Thread.sleep(refreshInterval);
             }
         } catch (InterruptedException e) {
@@ -102,11 +103,11 @@ public class MulticastPeerDiscoveryService {
      * from within timeout, remove it.
      */
     private void updateMap(DatagramFormat dgf) {
-        var peerMap = peerMapProviderService.getPeerMap();
-        if(hwInfo.getServerAddress().equals(dgf.getAddress()))
+        var peerMap = peerMapProvider.getPeerMap();
+        if(hwInfo.getDeviceId().equals(dgf.getDeviceId()))
             return;
         long currentTime = System.currentTimeMillis();
-        peerMap.merge(dgf.getAddress(), new PeerInfo(dgf.getName(), currentTime), (oldVal, newVal) -> {
+        peerMap.merge(dgf.getDeviceId(), new PeerInfo(dgf.getName(), dgf.getAddress(), currentTime), (oldVal, newVal) -> {
             oldVal.setTimestamp(currentTime);
             return oldVal;
         });

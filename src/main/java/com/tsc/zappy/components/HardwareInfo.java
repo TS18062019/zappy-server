@@ -5,6 +5,7 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,10 +19,10 @@ import lombok.extern.log4j.Log4j2;
 @Getter
 public class HardwareInfo {
 
-    private String localMacAddr;
     private String hostName;
     private String serverIp;
     private String serverAddress;
+    private String deviceId;
     private NetworkInterface nif;
 
     @Value("${server.port}")
@@ -32,10 +33,10 @@ public class HardwareInfo {
         try {
             nif = getInterface();
             serverIp = determineServerIp(nif);
-            localMacAddr = getMacAddr(nif);
+            deviceId = UUID.randomUUID().toString();
             hostName = InetAddress.getLocalHost().getHostName();
             serverAddress = "http://" + serverIp + ":" + serverPort;
-            log.info("Device: {}, MAC: {} hosted at {}:{} using interface {}", hostName, localMacAddr, serverIp,
+            log.info("Device: {}, Id: {} hosted at {}:{} using interface {}", hostName, deviceId, serverIp,
                     serverPort, nif.getDisplayName());
         } catch (SocketException | UnknownHostException e) {
             log.error("Error while getting hardware info. Application cannot proceed.", e);
@@ -64,17 +65,5 @@ public class HardwareInfo {
             }
         }
         return null;
-    }
-
-    private String getMacAddr(NetworkInterface nif) throws SocketException {
-        if (nif != null) {
-            byte[] bArr = nif.getHardwareAddress();
-            StringBuilder sb = new StringBuilder();
-            for (byte b : bArr)
-                sb.append(String.format("%02X", b));
-            log.info("Device MAC: {}", localMacAddr);
-            return sb.toString();
-        }
-        return "UNKNOWN";
     }
 }

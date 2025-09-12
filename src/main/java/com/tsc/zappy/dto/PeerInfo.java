@@ -8,6 +8,7 @@ import lombok.Data;
 public class PeerInfo {
     
     private final String name;
+    private final String ipAddr;
     private long timestamp;
     
     public void setTimestamp(long timestamp) {

@@ -3,8 +3,6 @@ package com.tsc.zappy.components;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
-import java.util.concurrent.ThreadLocalRandom;
-
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -24,11 +22,7 @@ public class HmacUtil {
 
     private static final String HMAC_ALGO = "HmacSHA256";
 
-    public String getNonce() {
-        return System.currentTimeMillis() + "-" + Long.toHexString(ThreadLocalRandom.current().nextLong());
-    }
-
-    private String sign(String message) {
+    public String sign(String message) {
         try {
             Mac m = Mac.getInstance(HMAC_ALGO);
             SecretKeySpec spec = new SecretKeySpec(secretKey.getBytes(), HMAC_ALGO);
@@ -42,12 +36,12 @@ public class HmacUtil {
     }
 
     public void signDatagram(DatagramFormat dgf) {
-        String signature = sign(dgf.getNonce()+"|"+dgf.getAddress());
+        String signature = sign(dgf.getDeviceId()+"|"+dgf.getAddress());
         dgf.setSignature(signature);
     }
 
     public boolean verifyDatagram(DatagramFormat dgf) {
-        return verify(dgf.getNonce(), dgf.getAddress(), dgf.getSignature());
+        return verify(dgf.getDeviceId(), dgf.getAddress(), dgf.getSignature());
     }
 
     private boolean verify(String nonce, String addr, String expectedSignature) {

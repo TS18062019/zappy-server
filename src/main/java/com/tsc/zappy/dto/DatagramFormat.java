@@ -8,12 +8,12 @@ import lombok.NoArgsConstructor;
 public class DatagramFormat {
     
     private String name;
-    private String nonce;
+    private String deviceId;
     private String address;
     private String signature;
     
-    public DatagramFormat(String nonce, String name, String address) {
-        this.nonce = nonce;
+    public DatagramFormat(String deviceId, String name, String address) {
+        this.deviceId = deviceId;
         this.address = address;
         this.name = name;
     }
