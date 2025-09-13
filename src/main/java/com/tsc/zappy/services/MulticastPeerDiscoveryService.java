@@ -7,6 +7,8 @@ import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.DatagramChannel;
 import java.util.concurrent.ExecutorService;
 import org.springframework.stereotype.Service;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tsc.zappy.components.HardwareInfo;
@@ -33,24 +35,28 @@ public class MulticastPeerDiscoveryService {
     private final PeerMapProvider peerMapProvider;
     private final ObjectMapper objectMapper;
 
-    private void beginAnnounce() {
+    public void beginAnnounce() {
         InetSocketAddress addr = new InetSocketAddress(mProperties.getMulticastAddr(), mProperties.getMulticasrPort());
+        long announceInterval = mProperties.getAnnounceIntervalMs();
         try {
-            while (channel.isOpen()) {
+            log.info("Beginning broadcast. Pinging every {} ms...", announceInterval);
+            while (!Thread.currentThread().isInterrupted() && channel.isOpen()) {
                 DatagramFormat dgf = new DatagramFormat(hwInfo.getDeviceId(), hwInfo.getHostName(), hwInfo.getServerAddress());
                 hmacUtil.signDatagram(dgf);
                 ByteBuffer buf = ByteBuffer.wrap(objectMapper.writeValueAsString(dgf).getBytes());
                 channel.send(buf, addr);
-                log.info("Broadcast sent!");
-                Thread.sleep(mProperties.getAnnounceIntervalMs());
+                Thread.sleep(announceInterval);
             }
-        } catch (IOException | InterruptedException e) {
-            Thread.currentThread().interrupt();
+        } catch (IOException e) {
             log.error(e);
+        } catch (InterruptedException e) {
+            log.info("Announce interrupted...");
+            Thread.currentThread().interrupt();
         }
     }
 
     private void beginListen() {
+        log.info("Listening for peers...");
         ByteBuffer buf = ByteBuffer.allocate(192);
         while (channel.isOpen()) {
             try {
@@ -70,31 +76,31 @@ public class MulticastPeerDiscoveryService {
         }
     }
 
-    private void listDevices() {
+    public void listDevices(WebSocketSession session) {
         final long refreshInterval = mProperties.getPeersRefreshInterval();
         var peerMap = peerMapProvider.getPeerMap();
         try {
-            while (channel.isOpen()) {
+            while (!Thread.currentThread().isInterrupted() && channel.isOpen()) {
                 long currentTime = System.currentTimeMillis();
                 peerMap.entrySet().removeIf(
                         entry -> currentTime - entry.getValue().getTimestamp() >= mProperties.getNoResponseTimeOut());
                 peerMap.forEach((k, v) -> log.info("{}, {}", v.getName(), v.getIpAddr()));
+                log.info("{} device(s) found", peerMap.size());
+                if(session.isOpen())
+                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(peerMap)));
                 Thread.sleep(refreshInterval);
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        } catch (IOException e) {
             log.error(e);
+        } catch (InterruptedException e) {
+            log.info("Listing interrupted...");
+            Thread.currentThread().interrupt();
         }
     }
 
     @PostConstruct
     public void begin() {
-        // announce every interval
-        service.execute(this::beginAnnounce);
-        // listen for incoming messages
         service.execute(this::beginListen);
-        // print connected devices
-        service.execute(this::listDevices);
     }
 
     /**
@@ -104,8 +110,6 @@ public class MulticastPeerDiscoveryService {
      */
     private void updateMap(DatagramFormat dgf) {
         var peerMap = peerMapProvider.getPeerMap();
-        if(hwInfo.getDeviceId().equals(dgf.getDeviceId()))
-            return;
         long currentTime = System.currentTimeMillis();
         peerMap.merge(dgf.getDeviceId(), new PeerInfo(dgf.getName(), dgf.getAddress(), currentTime), (oldVal, newVal) -> {
             oldVal.setTimestamp(currentTime);

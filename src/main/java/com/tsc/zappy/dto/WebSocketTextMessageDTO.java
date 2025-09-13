@@ -7,5 +7,5 @@ public class WebSocketTextMessageDTO {
     
     private String destinationDeviceId;
     private String destinationIp;
-    private String payload;
+    private String msgData;
 }

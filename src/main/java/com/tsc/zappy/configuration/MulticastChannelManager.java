@@ -36,6 +36,7 @@ public class MulticastChannelManager {
             DatagramChannel channel = DatagramChannel.open(StandardProtocolFamily.INET)
                     .setOption(StandardSocketOptions.SO_REUSEADDR, true)
                     .setOption(StandardSocketOptions.IP_MULTICAST_IF, nif)
+                    .setOption(StandardSocketOptions.IP_MULTICAST_LOOP, false)
                     .bind(new InetSocketAddress(mProperties.getMulticastAddr(),mProperties.getMulticasrPort()));
             InetAddress multicastGroup = InetAddress.getByName(mProperties.getMulticastAddr());
             channel.join(multicastGroup, nif);

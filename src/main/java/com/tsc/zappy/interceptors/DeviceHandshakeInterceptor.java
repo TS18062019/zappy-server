@@ -16,6 +16,7 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import com.tsc.zappy.components.HmacUtil;
+import com.tsc.zappy.constants.Constants;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -33,14 +34,14 @@ public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
 
         try {
             String query = request.getURI().getQuery();
-            String deviceId = getQueryParam(query).get("deviceId");
-            String signature = getQueryParam(query).get("sign");
+            String deviceId = getQueryParam(query).get(Constants.DEVICE_ID);
+            String signature = getQueryParam(query).get(Constants.SIGN);
             if (!verificationSuccess(deviceId, signature))
                 throw new IllegalAccessError("Bad credentials");
             InetAddress addr = request.getRemoteAddress().getAddress();
             if (addr != null) {
                 log.info("Handshake authorized for device {}, {}", addr.getHostName(), addr.getHostAddress());
-                attributes.put("deviceId", deviceId);
+                attributes.put(Constants.DEVICE_ID, deviceId);
                 return true;
             } else
                 throw new IllegalAccessError("Could not verify your device!");
