@@ -10,6 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
+import com.tsc.zappy.dto.WebSocketSessionDTO;
 import com.tsc.zappy.interfaces.SessionChangeListener;
 
 import lombok.extern.log4j.Log4j2;
@@ -19,10 +20,11 @@ import lombok.extern.log4j.Log4j2;
 public class WebSocketSessionProvider {
 
     private Map<String, List<SessionChangeListener>> listenersMap = new ConcurrentHashMap<>();
-    private Map<String, WebSocketSession> map = new ConcurrentHashMap<>();
+    private Map<String, WebSocketSessionDTO> map = new ConcurrentHashMap<>();
 
     /**
      * Registers session change listeners for a particular device
+     * 
      * @param listener
      * @param deviceId
      */
@@ -36,23 +38,31 @@ public class WebSocketSessionProvider {
         listenersMap.getOrDefault(deviceId, Collections.emptyList()).remove(listener);
     }
 
-    public Optional<WebSocketSession> getWebSocketSessionWithId(String deviceId) {
-        return Optional.ofNullable(map.get(deviceId));
+    public Optional<WebSocketSessionDTO> getWebSocketSession(String sessionId) {
+        return Optional.ofNullable(map.get(sessionId));
     }
 
-    public Optional<WebSocketSession> getWebSocketSessionWithIp(String deviceIp) {
-        return Optional.ofNullable(map.get(deviceIp));
+    public Optional<WebSocketSession> getWebSocketSessionWithDeviceId(String deviceId) {
+        return map.values().stream().filter(dto -> deviceId.equals(dto.getDeviceId())).findFirst()
+                .map(WebSocketSessionDTO::getSession);
     }
 
-    public void addSession(String deviceIdOrIp, WebSocketSession session) {
-        var result = map.putIfAbsent(deviceIdOrIp, session);
-        if(result == null)
-            listenersMap.getOrDefault(deviceIdOrIp, Collections.emptyList()).forEach(listener -> listener.onSessionAdded(deviceIdOrIp, session));
+    public Optional<WebSocketSession> getWebSocketSessionWithDeviceIp(String deviceIp) {
+        return map.values().stream().filter(dto -> deviceIp.equals(dto.getDeviceIp())).findFirst()
+                .map(WebSocketSessionDTO::getSession);
     }
 
-    public void deleteSession(String deviceIdOrIp) {
-        var result = map.remove(deviceIdOrIp);
-        if(result != null)
-            listenersMap.getOrDefault(deviceIdOrIp, Collections.emptyList()).forEach(listener -> listener.onSessionDeleted(deviceIdOrIp));
+    public void addSession(String sessionId, WebSocketSessionDTO sessionDto) {
+        var result = map.putIfAbsent(sessionId, sessionDto);
+        if (result == null)
+            listenersMap.getOrDefault(sessionId, Collections.emptyList())
+                    .forEach(listener -> listener.onSessionAdded(sessionId, sessionDto));
+    }
+
+    public void deleteSession(String sessionId) {
+        var result = map.remove(sessionId);
+        if (result != null)
+            listenersMap.getOrDefault(sessionId, Collections.emptyList())
+                    .forEach(listener -> listener.onSessionDeleted(sessionId));
     }
 }

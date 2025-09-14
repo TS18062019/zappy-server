@@ -1,7 +1,6 @@
 package com.tsc.zappy.handlers;
 
 import java.io.IOException;
-
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -12,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tsc.zappy.components.HardwareInfo;
 import com.tsc.zappy.components.WebSocketSessionProvider;
 import com.tsc.zappy.constants.Constants;
+import com.tsc.zappy.dto.WebSocketSessionDTO;
 import com.tsc.zappy.dto.WebSocketTextMessageDTO;
 import com.tsc.zappy.services.LocalCommandsService;
 import com.tsc.zappy.services.WebSocketClientService;
@@ -38,11 +38,14 @@ public class TextDataHandler extends TextWebSocketHandler {
 
         var connectedDeviceId = getParamFromSession(session, Constants.DEVICE_ID);
         var connectedServerIp = getParamFromSession(session, Constants.DEVICE_IP);
+        WebSocketSessionDTO sessionDTO = new WebSocketSessionDTO();
+        sessionDTO.setSession(session);
         // make session fetchable with both - ip & deviceId
-        if(connectedDeviceId != null && !connectedDeviceId.equals(info.getDeviceId()))
-            sessionProvider.addSession(connectedDeviceId, session);
-        if(connectedServerIp != null && !connectedServerIp.equals(info.getServerIp()))
-            sessionProvider.addSession(connectedServerIp, session);
+        sessionDTO.setDeviceId(connectedDeviceId);
+        sessionDTO.setDeviceIp(connectedServerIp);
+        if(!clientService.getIpQueue().isEmpty())
+            sessionDTO.setDeviceIp(clientService.getIpQueue().poll());
+        sessionProvider.addSession(session.getId(), sessionDTO);
     }
 
     /**
@@ -63,20 +66,20 @@ public class TextDataHandler extends TextWebSocketHandler {
                 localCommandsService.processCommand(dto, session);
             } else {
                 // forward message to device connected with this server
-                var existingSession = sessionProvider.getWebSocketSessionWithId(destinationDeviceId);
+                var existingSession = sessionProvider.getWebSocketSessionWithDeviceId(destinationDeviceId);
                 existingSession.ifPresentOrElse(ses -> {
                     log.info("Forwarding message to {} with an existing session on this server", destinationDeviceId);
-                    trySendMessage(session, message);
+                    trySendMessage(ses, message);
                 }, () -> 
                     log.error("No device with id {} found on this server", destinationDeviceId)
                 );
             }
         } else {
             // get existing connected server ips or create new connection & forward to them
-            var existingSession = sessionProvider.getWebSocketSessionWithIp(destinationDeviceIp);
+            var existingSession = sessionProvider.getWebSocketSessionWithDeviceIp(destinationDeviceIp);
             existingSession.ifPresentOrElse(ses -> {
                 log.info("Forwarding message to server {} with an existing session", destinationDeviceIp);
-                trySendMessage(session, message);
+                trySendMessage(ses, message);
             }, () -> {
                 log.info("Creating a new session with server {} and forwarding this message...", destinationDeviceIp);
                 clientService.createNewSessionAndForward(this, dto.getDestinationIp(), "text", message);
@@ -87,8 +90,7 @@ public class TextDataHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         log.info("Session closed! Id: {}, {}", session.getId(), status.getReason());
-        sessionProvider.deleteSession(getParamFromSession(session, Constants.DEVICE_ID));
-        sessionProvider.deleteSession(getParamFromSession(session, Constants.DEVICE_IP));
+        sessionProvider.deleteSession(session.getId());
     }
 
     private String getParamFromSession(WebSocketSession session, String param) {

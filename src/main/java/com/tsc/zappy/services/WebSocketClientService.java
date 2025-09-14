@@ -1,6 +1,8 @@
 package com.tsc.zappy.services;
 
 import java.io.IOException;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketHandler;
@@ -21,6 +23,8 @@ public class WebSocketClientService {
     private final HardwareInfo info;
     private final HmacUtil util;
 
+    private Queue<String> outgoingDeviceIp = new ConcurrentLinkedQueue<>();
+
     /**
      * 
      * @param url specifies the url of the websocket server to connect to
@@ -30,6 +34,7 @@ public class WebSocketClientService {
             WebSocketMessage<?> message) {
         String thisDeviceId = info.getDeviceId();
         StandardWebSocketClient client = new StandardWebSocketClient();
+        outgoingDeviceIp.add(host);
         client.execute(webSocketHandler, "ws://{0}:8080/ws/{1}?deviceId={2}&sign={3}", host, endpoint, thisDeviceId,
                 util.sign(thisDeviceId))
                 .thenAccept(session -> {
@@ -40,7 +45,12 @@ public class WebSocketClientService {
                     }
                 }).exceptionally(ex -> {
                     log.error("Oops! Some error occured while connecting to {}/{}", host, endpoint, ex);
+                    outgoingDeviceIp.clear();
                     return null;
                 });
+    }
+
+    public Queue<String> getIpQueue() {
+        return outgoingDeviceIp;
     }
 }

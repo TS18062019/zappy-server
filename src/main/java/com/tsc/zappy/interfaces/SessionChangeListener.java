@@ -1,9 +1,9 @@
 package com.tsc.zappy.interfaces;
 
-import org.springframework.web.socket.WebSocketSession;
+import com.tsc.zappy.dto.WebSocketSessionDTO;
 
 public interface SessionChangeListener {
     
-    void onSessionAdded(String deviceId, WebSocketSession session);
-    void onSessionDeleted(String deviceId);
+    void onSessionAdded(String sessionId, WebSocketSessionDTO sessionDTO);
+    void onSessionDeleted(String sessionId);
 }
