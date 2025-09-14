@@ -28,7 +28,6 @@ import lombok.extern.log4j.Log4j2;
 @RequiredArgsConstructor
 public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
 
-    private final HardwareInfo info;
     private final HmacUtil hmacUtil;
 
     @Override
@@ -36,7 +35,6 @@ public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
             Map<String, Object> attributes) throws Exception {
 
         try {
-            log.info("Handler ID beforeHandshake: {}", wsHandler.toString());
             String query = request.getURI().getQuery();
             String deviceId = getQueryParam(query).get(Constants.DEVICE_ID);
             String signature = getQueryParam(query).get(Constants.SIGN);
@@ -46,6 +44,7 @@ public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
             if (addr != null) {
                 log.info("Handshake authorized for device {}, {}", addr.getHostName(), addr.getHostAddress());
                 attributes.put(Constants.DEVICE_ID, deviceId);
+                attributes.put(Constants.DEVICE_IP, addr.getHostAddress());
                 return true;
             } else
                 throw new IllegalAccessError("Could not verify your device!");
@@ -60,13 +59,6 @@ public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler wsHandler,
             Exception exception) {
                 // implementation not needed yet
-                log.info("Handler ID afterHandshake: {}", wsHandler.toString());
-                try {
-                    response.getBody().write(info.getDeviceId().getBytes());
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
     }
 
     private Map<String, String> getQueryParam(String query) {

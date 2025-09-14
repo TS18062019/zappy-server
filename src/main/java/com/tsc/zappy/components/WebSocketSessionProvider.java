@@ -36,19 +36,23 @@ public class WebSocketSessionProvider {
         listenersMap.getOrDefault(deviceId, Collections.emptyList()).remove(listener);
     }
 
-    public Optional<WebSocketSession> getWebSocketSession(String deviceId) {
+    public Optional<WebSocketSession> getWebSocketSessionWithId(String deviceId) {
         return Optional.ofNullable(map.get(deviceId));
     }
 
-    public void addSession(String deviceId, WebSocketSession session) {
-        var result = map.putIfAbsent(deviceId, session);
-        if(result == null)
-            listenersMap.getOrDefault(deviceId, Collections.emptyList()).forEach(listener -> listener.onSessionAdded(deviceId, session));
+    public Optional<WebSocketSession> getWebSocketSessionWithIp(String deviceIp) {
+        return Optional.ofNullable(map.get(deviceIp));
     }
 
-    public void deleteSession(String deviceId) {
-        var result = map.remove(deviceId);
+    public void addSession(String deviceIdOrIp, WebSocketSession session) {
+        var result = map.putIfAbsent(deviceIdOrIp, session);
+        if(result == null)
+            listenersMap.getOrDefault(deviceIdOrIp, Collections.emptyList()).forEach(listener -> listener.onSessionAdded(deviceIdOrIp, session));
+    }
+
+    public void deleteSession(String deviceIdOrIp) {
+        var result = map.remove(deviceIdOrIp);
         if(result != null)
-            listenersMap.getOrDefault(deviceId, Collections.emptyList()).forEach(listener -> listener.onSessionDeleted(deviceId));
+            listenersMap.getOrDefault(deviceIdOrIp, Collections.emptyList()).forEach(listener -> listener.onSessionDeleted(deviceIdOrIp));
     }
 }

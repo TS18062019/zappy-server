@@ -35,51 +35,72 @@ public class TextDataHandler extends TextWebSocketHandler {
         log.info("Connection established. Id:{}, {}, {}, {}, {}", session.getId(), session.getUri(),
                 session.getPrincipal(), session.getLocalAddress().getAddress(),
                 session.getRemoteAddress().getAddress());
-        sessionProvider.addSession(getDeviceIdFromSession(session), session);
+
+        var connectedDeviceId = getParamFromSession(session, Constants.DEVICE_ID);
+        var connectedServerIp = getParamFromSession(session, Constants.DEVICE_IP);
+        // make session fetchable with both - ip & deviceId
+        if(connectedDeviceId != null && !connectedDeviceId.equals(info.getDeviceId()))
+            sessionProvider.addSession(connectedDeviceId, session);
+        if(connectedServerIp != null && !connectedServerIp.equals(info.getServerIp()))
+            sessionProvider.addSession(connectedServerIp, session);
     }
 
+    /**
+     * Route based on ip then forward to matching deviceId
+     */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         log.info("Text payload of length {} received from {}", message.getPayloadLength(),
-                getDeviceIdFromSession(session));
+                getParamFromSession(session, Constants.DEVICE_ID));
         WebSocketTextMessageDTO dto = objectMapper.readValue(message.getPayload(), WebSocketTextMessageDTO.class);
         String destinationDeviceId = dto.getDestinationDeviceId();
-        TextWebSocketHandler tws = new TextWebSocketHandler() {
-
-            @Override
-            public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-                log.info("Connection established. Id:{}, {}, {}, {}, {}", session.getId(), session.getUri(),
-                session.getPrincipal(), session.getLocalAddress().getAddress(),
-                session.getRemoteAddress().getAddress());
-                log.info("Device id from new handler: {}", getDeviceIdFromSession(session));
+        String destinationDeviceIp = dto.getDestinationIp();
+        if (info.getServerIp().equals(destinationDeviceIp)) {
+            log.info("Message reached the destination server {}", destinationDeviceIp);
+            // process message meant for this device
+            if (info.getDeviceId().equals(destinationDeviceId)) {
+                log.info("Message reached the detination device id={}", destinationDeviceId);
+                localCommandsService.processCommand(dto, session);
+            } else {
+                // forward message to device connected with this server
+                var existingSession = sessionProvider.getWebSocketSessionWithId(destinationDeviceId);
+                existingSession.ifPresentOrElse(ses -> {
+                    log.info("Forwarding message to {} with an existing session on this server", destinationDeviceId);
+                    trySendMessage(session, message);
+                }, () -> 
+                    log.error("No device with id {} found on this server", destinationDeviceId)
+                );
             }
-            
-        };
-        // if message is meant for this device accept it else forward it
-        if (destinationDeviceId.equals(info.getDeviceId())) {
-            localCommandsService.processCommand(dto, session);
         } else {
-            var existingSession = sessionProvider.getWebSocketSession(destinationDeviceId);
-            existingSession.ifPresentOrElse(anotherSession -> {
-                try {
-                    log.info("Forwarding message to {} with an existing session", destinationDeviceId);
-                    anotherSession.sendMessage(message);
-                } catch (IOException e) {
-                    log.error("Exception occurred while sending message to {}. Reason: {}", destinationDeviceId,
-                            e.getMessage());
-                }
-            }, () -> clientService.createNewSessionAndForward(tws, dto.getDestinationIp(), "text", message));
+            // get existing connected server ips or create new connection & forward to them
+            var existingSession = sessionProvider.getWebSocketSessionWithIp(destinationDeviceIp);
+            existingSession.ifPresentOrElse(ses -> {
+                log.info("Forwarding message to server {} with an existing session", destinationDeviceIp);
+                trySendMessage(session, message);
+            }, () -> {
+                log.info("Creating a new session with server {} and forwarding this message...", destinationDeviceIp);
+                clientService.createNewSessionAndForward(this, dto.getDestinationIp(), "text", message);
+            });
         }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         log.info("Session closed! Id: {}, {}", session.getId(), status.getReason());
-        sessionProvider.deleteSession(getDeviceIdFromSession(session));
+        sessionProvider.deleteSession(getParamFromSession(session, Constants.DEVICE_ID));
+        sessionProvider.deleteSession(getParamFromSession(session, Constants.DEVICE_IP));
     }
 
-    private String getDeviceIdFromSession(WebSocketSession session) {
-        return (String) session.getAttributes().get(Constants.DEVICE_ID);
+    private String getParamFromSession(WebSocketSession session, String param) {
+        return (String) session.getAttributes().get(param);
+    }
+
+    private void trySendMessage(WebSocketSession session, TextMessage message) {
+        try {
+            session.sendMessage(message);
+        } catch (IOException e) {
+            log.error("Couldn't send message", e);
+        }
     }
 
 }
