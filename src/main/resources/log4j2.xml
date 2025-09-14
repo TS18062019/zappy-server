@@ -6,10 +6,14 @@
                    https://logging.apache.org/xml/ns/log4j-config-2.xsd"
                 status="WARN">
 
-    <Appenders>
+    <Properties>
+        <Property name="LOG_PATTERN" value="%highlight{%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n}{FATAL=bg_red, ERROR=red, WARN=yellow, INFO=green, DEBUG=blue, TRACE=cyan}" />
+    </Properties>
+    
+                <Appenders>
         <!-- Console appender -->
         <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
+            <PatternLayout pattern="${LOG_PATTERN}" disableAnsi="false" noConsoleNoAnsi="false" />
         </Console>
 
         <!-- Async wrapper for Console -->

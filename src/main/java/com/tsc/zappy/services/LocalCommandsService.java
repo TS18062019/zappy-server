@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import com.tsc.zappy.components.WebSocketSessionProvider;
-import com.tsc.zappy.constants.Constants;
+import com.tsc.zappy.dto.WebSocketSessionDTO;
 import com.tsc.zappy.dto.WebSocketTextMessageDTO;
 import com.tsc.zappy.interfaces.SessionChangeListener;
 
@@ -33,35 +33,34 @@ public class LocalCommandsService implements SessionChangeListener {
      * @param session
      */
     public void processCommand(WebSocketTextMessageDTO dto, WebSocketSession session) {
-        String sourceDeviceId = (String) session.getAttributes().get(Constants.DEVICE_ID);
         if ("DISCOVER_PEERS".equals(dto.getMsgData())) {
             if (taskList.isEmpty()) {
                 log.info("Discovering peers...");
-                sessionProvider.registerListener(this, sourceDeviceId);
+                sessionProvider.registerListener(this, session.getId());
                 taskList.add(executorService.submit(peerDiscoveryService::beginAnnounce));
                 taskList.add(executorService.submit(() -> peerDiscoveryService.listDevices(session)));
             }
         } else if ("STOP_DISCOVERY".equals(dto.getMsgData())) {
-            stopAll(dto.getDestinationDeviceId());
+            stopAll(session.getId());
         }
     }
 
-    public void stopAll(String deviceId) {
+    public void stopAll(String sessionId) {
         log.info("Discovery stopped");
         for (var task : taskList)
             task.cancel(true);
         taskList.clear();
-        sessionProvider.unregisterListener(this, deviceId);
+        sessionProvider.unregisterListener(this, sessionId);
     }
 
     @Override
-    public void onSessionAdded(String deviceId, WebSocketSession session) {
+    public void onSessionDeleted(String sessionId) {
+       stopAll(sessionId);
+    }
+
+    @Override
+    public void onSessionAdded(String sessionId, WebSocketSessionDTO sessionDTO) {
         // not needed
-    }
-
-    @Override
-    public void onSessionDeleted(String deviceId) {
-       stopAll(deviceId);
     }
 
    
