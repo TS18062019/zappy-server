@@ -33,14 +33,14 @@ public class LocalCommandsService implements SessionChangeListener {
      * @param session
      */
     public void processCommand(WebSocketTextMessageDTO dto, WebSocketSession session) {
-        if ("DISCOVER_PEERS".equals(dto.getMsgData())) {
+        if ("DISCOVER_PEERS".equals(dto.getCommand())) {
             if (taskList.isEmpty()) {
                 log.info("Discovering peers...");
                 sessionProvider.registerListener(this, session.getId());
                 taskList.add(executorService.submit(peerDiscoveryService::beginAnnounce));
                 taskList.add(executorService.submit(() -> peerDiscoveryService.listDevices(session)));
             }
-        } else if ("STOP_DISCOVERY".equals(dto.getMsgData())) {
+        } else if ("STOP_DISCOVERY".equals(dto.getCommand())) {
             stopAll(session.getId());
         }
     }

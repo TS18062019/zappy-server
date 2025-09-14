@@ -17,6 +17,7 @@ import com.tsc.zappy.components.MulticastProperties;
 import com.tsc.zappy.components.PeerMapProvider;
 import com.tsc.zappy.dto.DatagramFormat;
 import com.tsc.zappy.dto.PeerInfo;
+import com.tsc.zappy.dto.WebSocketTextMessageResponseDTO;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -74,6 +75,7 @@ public class MulticastPeerDiscoveryService {
                     log.error(e);
             }
         }
+        log.info("######Exiting listen function########");
     }
 
     public void listDevices(WebSocketSession session) {
@@ -87,7 +89,7 @@ public class MulticastPeerDiscoveryService {
                 peerMap.forEach((k, v) -> log.info("{}, {}", v.getName(), v.getIpAddr()));
                 log.info("{} device(s) found", peerMap.size());
                 if(session.isOpen())
-                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(peerMap)));
+                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(new WebSocketTextMessageResponseDTO("peerMap", peerMap))));
                 Thread.sleep(refreshInterval);
             }
         } catch (IOException e) {

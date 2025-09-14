@@ -28,7 +28,9 @@ public class LanController {
         return Map.of(
             Constants.DEVICE_ID, deviceId,
             Constants.SIGN, util.sign(deviceId),
-            "sender", info.getDeviceId()
+            "serverId", info.getDeviceId(),
+            "serverIp", info.getServerIp(),
+            "name", "server"
         );
     }
 }
