@@ -35,15 +35,26 @@ public class TextDataHandler extends TextWebSocketHandler {
         log.info("Connection established. Id:{}, {}, {}, {}, {}", session.getId(), session.getUri(),
                 session.getPrincipal(), session.getLocalAddress().getAddress(),
                 session.getRemoteAddress().getAddress());
-        sessionProvider.addSession((String) session.getAttributes().get(Constants.DEVICE_ID), session);
+        sessionProvider.addSession(getDeviceIdFromSession(session), session);
     }
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         log.info("Text payload of length {} received from {}", message.getPayloadLength(),
-                session.getAttributes().get(Constants.DEVICE_ID));
+                getDeviceIdFromSession(session));
         WebSocketTextMessageDTO dto = objectMapper.readValue(message.getPayload(), WebSocketTextMessageDTO.class);
         String destinationDeviceId = dto.getDestinationDeviceId();
+        TextWebSocketHandler tws = new TextWebSocketHandler() {
+
+            @Override
+            public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+                log.info("Connection established. Id:{}, {}, {}, {}, {}", session.getId(), session.getUri(),
+                session.getPrincipal(), session.getLocalAddress().getAddress(),
+                session.getRemoteAddress().getAddress());
+                log.info("Device id from new handler: {}", getDeviceIdFromSession(session));
+            }
+            
+        };
         // if message is meant for this device accept it else forward it
         if (destinationDeviceId.equals(info.getDeviceId())) {
             localCommandsService.processCommand(dto, session);
@@ -51,19 +62,24 @@ public class TextDataHandler extends TextWebSocketHandler {
             var existingSession = sessionProvider.getWebSocketSession(destinationDeviceId);
             existingSession.ifPresentOrElse(anotherSession -> {
                 try {
+                    log.info("Forwarding message to {} with an existing session", destinationDeviceId);
                     anotherSession.sendMessage(message);
                 } catch (IOException e) {
                     log.error("Exception occurred while sending message to {}. Reason: {}", destinationDeviceId,
                             e.getMessage());
                 }
-            }, () -> clientService.createNewSession(this, dto.getDestinationIp(), "text"));
+            }, () -> clientService.createNewSessionAndForward(tws, dto.getDestinationIp(), "text", message));
         }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         log.info("Session closed! Id: {}, {}", session.getId(), status.getReason());
-        sessionProvider.deleteSession((String) session.getAttributes().get(Constants.DEVICE_ID));
+        sessionProvider.deleteSession(getDeviceIdFromSession(session));
+    }
+
+    private String getDeviceIdFromSession(WebSocketSession session) {
+        return (String) session.getAttributes().get(Constants.DEVICE_ID);
     }
 
 }

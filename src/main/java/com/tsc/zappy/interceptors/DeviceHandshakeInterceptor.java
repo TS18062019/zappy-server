@@ -1,5 +1,6 @@
 package com.tsc.zappy.interceptors;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import com.tsc.zappy.components.HardwareInfo;
 import com.tsc.zappy.components.HmacUtil;
 import com.tsc.zappy.constants.Constants;
 
@@ -26,6 +28,7 @@ import lombok.extern.log4j.Log4j2;
 @RequiredArgsConstructor
 public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
 
+    private final HardwareInfo info;
     private final HmacUtil hmacUtil;
 
     @Override
@@ -33,6 +36,7 @@ public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
             Map<String, Object> attributes) throws Exception {
 
         try {
+            log.info("Handler ID beforeHandshake: {}", wsHandler.toString());
             String query = request.getURI().getQuery();
             String deviceId = getQueryParam(query).get(Constants.DEVICE_ID);
             String signature = getQueryParam(query).get(Constants.SIGN);
@@ -56,6 +60,13 @@ public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler wsHandler,
             Exception exception) {
                 // implementation not needed yet
+                log.info("Handler ID afterHandshake: {}", wsHandler.toString());
+                try {
+                    response.getBody().write(info.getDeviceId().getBytes());
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
     }
 
     private Map<String, String> getQueryParam(String query) {
