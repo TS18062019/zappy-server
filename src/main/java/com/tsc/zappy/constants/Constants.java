@@ -5,5 +5,6 @@ public class Constants {
     private Constants() {}
 
     public static final String DEVICE_ID = "deviceId";
+    public static final String DEVICE_IP = "deviceIp";
     public static final String SIGN = "sign";
 }
