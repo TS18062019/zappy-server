@@ -23,13 +23,12 @@ import lombok.Data;
 @Data
 public class WebSocketTextMessage {
     
-    private int ttl = 0;
+    // this flag controls whether the receiving server needs to inform the sender of the delivery status => use when
+    // you need to know the status of message delivery
+    private boolean requiresResponse;
     private String sourceDeviceId;
     private String sourceIp;
     private String destinationDeviceId;
     private String destinationIp;
 
-    public void incrementTtl() {
-        ttl += 1;
-    }
 }

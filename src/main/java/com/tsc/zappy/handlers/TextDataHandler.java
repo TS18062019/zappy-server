@@ -61,14 +61,7 @@ public class TextDataHandler extends TextWebSocketHandler {
         var dto = objectMapper.readValue(message.getPayload(), WebSocketTextMessage.class);
         String destinationDeviceId = dto.getDestinationDeviceId();
         String destinationDeviceIp = dto.getDestinationIp();
-        String sourceDeviceId = dto.getSourceDeviceId();
-        String sourceIp = dto.getSourceIp();
-        // discard packet if ttl above threshold
-        dto.incrementTtl();
-        if (dto.getTtl() > 30) {
-            log.info("Packet from={} to={} discarded", sourceIp, destinationDeviceIp);
-            return;
-        }
+
         if (info.getServerIp().equals(destinationDeviceIp)) {
             log.info("Message reached the destination server {}", destinationDeviceIp);
             // process message meant for this device
@@ -76,7 +69,7 @@ public class TextDataHandler extends TextWebSocketHandler {
                 log.info("Message reached the destination device id={}", destinationDeviceId);
                 if (dto instanceof WebSocketTextMessageDTO wtm)
                     localCommandsService.processCommand(wtm, session);
-                trySendResponse(session, sourceIp, sourceDeviceId, null, Constants.SUCCESS);
+                trySendResponse(session, dto, null, Constants.SUCCESS);
             } else {
                 // forward message to device connected with this server
                 var existingSession = sessionProvider.getWebSocketSessionWithDeviceId(destinationDeviceId);
@@ -85,7 +78,7 @@ public class TextDataHandler extends TextWebSocketHandler {
                     trySendMessage(ses, getNewTextMessage(dto));
                 }, () -> {
                     log.error("No device with id {} found on this server", destinationDeviceId);
-                    trySendResponse(session, sourceIp, sourceDeviceId, null, Constants.FAILED);
+                    trySendResponse(session, dto, null, Constants.FAILED);
                 });
             }
         } else {
@@ -97,10 +90,10 @@ public class TextDataHandler extends TextWebSocketHandler {
             }, () -> {
                 log.info("Creating a new session with server {} and forwarding this message...", destinationDeviceIp);
                 clientService.createNewSessionAndForward(this, dto.getDestinationIp(), "text", getNewTextMessage(dto))
-                .thenAccept(resp -> {
-                    if(resp.equals(Constants.FAILED))
-                        trySendResponse(session, sourceIp, sourceDeviceId, null, Constants.FAILED);
-                });
+                        .thenAccept(resp -> {
+                            if (resp.equals(Constants.FAILED))
+                                trySendResponse(session, dto, null, Constants.FAILED);
+                        });
             });
         }
     }
@@ -132,17 +125,18 @@ public class TextDataHandler extends TextWebSocketHandler {
         }
     }
 
-    private void trySendResponse(WebSocketSession session, String destnIp, String destnDeviceId, Object payload,
+    private void trySendResponse(WebSocketSession session, WebSocketTextMessage receivedMessage, Object payload,
             String statusCode) {
-        // necessary to prevent loopback
-        if (destnDeviceId == null || destnIp == null || destnDeviceId.isBlank() || destnIp.isBlank())
+        // prevents sending response of a response, possibly avoiding a cycle
+        if (!receivedMessage.isRequiresResponse())
             return;
-        // IMP: source must not be set here or reset to ""
-        WebSocketTextMessageResponseDTO dto = new WebSocketTextMessageResponseDTO(statusCode, Constants.RESPONSE, payload);
-        dto.setDestinationDeviceId(destnDeviceId);
-        dto.setDestinationIp(destnIp);
-        dto.setSourceDeviceId("");
-        dto.setSourceIp("");
+        WebSocketTextMessageResponseDTO dto = new WebSocketTextMessageResponseDTO(statusCode, Constants.RESPONSE,
+                payload);
+        dto.setDestinationDeviceId(receivedMessage.getSourceDeviceId());
+        dto.setDestinationIp(receivedMessage.getSourceIp());
+        dto.setSourceDeviceId(receivedMessage.getDestinationDeviceId());
+        dto.setSourceIp(receivedMessage.getDestinationIp());
+        dto.setRequiresResponse(false);
         try {
             session.sendMessage(getNewTextMessage(dto));
         } catch (IOException e) {

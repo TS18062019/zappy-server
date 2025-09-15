@@ -43,11 +43,15 @@ public class WebSocketSessionProvider {
     }
 
     public Optional<WebSocketSession> getWebSocketSessionWithDeviceId(String deviceId) {
+        if(deviceId == null)
+            return Optional.empty();
         return map.values().stream().filter(dto -> deviceId.equals(dto.getDeviceId())).findFirst()
                 .map(WebSocketSessionDTO::getSession);
     }
 
     public Optional<WebSocketSession> getWebSocketSessionWithDeviceIp(String deviceIp) {
+        if(deviceIp == null)
+            return Optional.empty();
         return map.values().stream().filter(dto -> deviceIp.equals(dto.getDeviceIp())).findFirst()
                 .map(WebSocketSessionDTO::getSession);
     }
