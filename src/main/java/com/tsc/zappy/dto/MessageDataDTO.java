@@ -8,4 +8,6 @@ public class MessageDataDTO {
     private String type;
     private String payload;
     private String size;
+    private String sender;
+    private boolean delivered;
 }

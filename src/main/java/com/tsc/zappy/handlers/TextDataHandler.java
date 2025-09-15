@@ -7,12 +7,15 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tsc.zappy.components.HardwareInfo;
 import com.tsc.zappy.components.WebSocketSessionProvider;
 import com.tsc.zappy.constants.Constants;
 import com.tsc.zappy.dto.WebSocketSessionDTO;
 import com.tsc.zappy.dto.WebSocketTextMessageDTO;
+import com.tsc.zappy.dto.WebSocketTextMessageResponseDTO;
+import com.tsc.zappy.interfaces.WebSocketTextMessage;
 import com.tsc.zappy.services.LocalCommandsService;
 import com.tsc.zappy.services.WebSocketClientService;
 
@@ -43,7 +46,7 @@ public class TextDataHandler extends TextWebSocketHandler {
         // make session fetchable with both - ip & deviceId
         sessionDTO.setDeviceId(connectedDeviceId);
         sessionDTO.setDeviceIp(connectedServerIp);
-        if(!clientService.getIpQueue().isEmpty())
+        if (!clientService.getIpQueue().isEmpty())
             sessionDTO.setDeviceIp(clientService.getIpQueue().poll());
         sessionProvider.addSession(session.getId(), sessionDTO);
     }
@@ -55,34 +58,49 @@ public class TextDataHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         log.info("Text payload of length {} received from {}", message.getPayloadLength(),
                 getParamFromSession(session, Constants.DEVICE_ID));
-        WebSocketTextMessageDTO dto = objectMapper.readValue(message.getPayload(), WebSocketTextMessageDTO.class);
+        var dto = objectMapper.readValue(message.getPayload(), WebSocketTextMessage.class);
         String destinationDeviceId = dto.getDestinationDeviceId();
         String destinationDeviceIp = dto.getDestinationIp();
+        String sourceDeviceId = dto.getSourceDeviceId();
+        String sourceIp = dto.getSourceIp();
+        // discard packet if ttl above threshold
+        dto.incrementTtl();
+        if (dto.getTtl() > 30) {
+            log.info("Packet from={} to={} discarded", sourceIp, destinationDeviceIp);
+            return;
+        }
         if (info.getServerIp().equals(destinationDeviceIp)) {
             log.info("Message reached the destination server {}", destinationDeviceIp);
             // process message meant for this device
             if (info.getDeviceId().equals(destinationDeviceId)) {
-                log.info("Message reached the detination device id={}", destinationDeviceId);
-                localCommandsService.processCommand(dto, session);
+                log.info("Message reached the destination device id={}", destinationDeviceId);
+                if (dto instanceof WebSocketTextMessageDTO wtm)
+                    localCommandsService.processCommand(wtm, session);
+                trySendResponse(session, sourceIp, sourceDeviceId, null, Constants.SUCCESS);
             } else {
                 // forward message to device connected with this server
                 var existingSession = sessionProvider.getWebSocketSessionWithDeviceId(destinationDeviceId);
                 existingSession.ifPresentOrElse(ses -> {
                     log.info("Forwarding message to {} with an existing session on this server", destinationDeviceId);
-                    trySendMessage(ses, message);
-                }, () -> 
-                    log.error("No device with id {} found on this server", destinationDeviceId)
-                );
+                    trySendMessage(ses, getNewTextMessage(dto));
+                }, () -> {
+                    log.error("No device with id {} found on this server", destinationDeviceId);
+                    trySendResponse(session, sourceIp, sourceDeviceId, null, Constants.FAILED);
+                });
             }
         } else {
             // get existing connected server ips or create new connection & forward to them
             var existingSession = sessionProvider.getWebSocketSessionWithDeviceIp(destinationDeviceIp);
             existingSession.ifPresentOrElse(ses -> {
                 log.info("Forwarding message to server {} with an existing session", destinationDeviceIp);
-                trySendMessage(ses, message);
+                trySendMessage(ses, getNewTextMessage(dto));
             }, () -> {
                 log.info("Creating a new session with server {} and forwarding this message...", destinationDeviceIp);
-                clientService.createNewSessionAndForward(this, dto.getDestinationIp(), "text", message);
+                clientService.createNewSessionAndForward(this, dto.getDestinationIp(), "text", getNewTextMessage(dto))
+                .thenAccept(resp -> {
+                    if(resp.equals(Constants.FAILED))
+                        trySendResponse(session, sourceIp, sourceDeviceId, null, Constants.FAILED);
+                });
             });
         }
     }
@@ -97,11 +115,38 @@ public class TextDataHandler extends TextWebSocketHandler {
         return (String) session.getAttributes().get(param);
     }
 
+    private TextMessage getNewTextMessage(WebSocketTextMessage message) {
+        try {
+            return new TextMessage(objectMapper.writeValueAsString(message));
+        } catch (JsonProcessingException e) {
+            log.error("JSON parse exception", e);
+            throw new IllegalArgumentException(e);
+        }
+    }
+
     private void trySendMessage(WebSocketSession session, TextMessage message) {
         try {
             session.sendMessage(message);
         } catch (IOException e) {
             log.error("Couldn't send message", e);
+        }
+    }
+
+    private void trySendResponse(WebSocketSession session, String destnIp, String destnDeviceId, Object payload,
+            String statusCode) {
+        // necessary to prevent loopback
+        if (destnDeviceId == null || destnIp == null || destnDeviceId.isBlank() || destnIp.isBlank())
+            return;
+        // IMP: source must not be set here or reset to ""
+        WebSocketTextMessageResponseDTO dto = new WebSocketTextMessageResponseDTO(statusCode, Constants.RESPONSE, payload);
+        dto.setDestinationDeviceId(destnDeviceId);
+        dto.setDestinationIp(destnIp);
+        dto.setSourceDeviceId("");
+        dto.setSourceIp("");
+        try {
+            session.sendMessage(getNewTextMessage(dto));
+        } catch (IOException e) {
+            log.error("Couldn't send response", e);
         }
     }
 

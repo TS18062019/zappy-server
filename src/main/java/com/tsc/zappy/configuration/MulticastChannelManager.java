@@ -37,10 +37,10 @@ public class MulticastChannelManager {
                     .setOption(StandardSocketOptions.SO_REUSEADDR, true)
                     .setOption(StandardSocketOptions.IP_MULTICAST_IF, nif)
                     .setOption(StandardSocketOptions.IP_MULTICAST_LOOP, false)
-                    .bind(new InetSocketAddress(mProperties.getMulticastAddr(),mProperties.getMulticasrPort()));
+                    .bind(new InetSocketAddress(mProperties.getMulticasrPort()));
             InetAddress multicastGroup = InetAddress.getByName(mProperties.getMulticastAddr());
             channel.join(multicastGroup, nif);
-            channel.configureBlocking(true);
+            channel.configureBlocking(false);
             return channel;
         } catch (IOException e) {
             log.error(e);

@@ -37,7 +37,7 @@ public class LocalCommandsService implements SessionChangeListener {
             if (taskList.isEmpty()) {
                 log.info("Discovering peers...");
                 sessionProvider.registerListener(this, session.getId());
-                taskList.add(executorService.submit(peerDiscoveryService::beginAnnounce));
+                taskList.add(executorService.submit(peerDiscoveryService::beginAnnounceOnListen));
                 taskList.add(executorService.submit(() -> peerDiscoveryService.listDevices(session)));
             }
         } else if ("STOP_DISCOVERY".equals(dto.getCommand())) {
