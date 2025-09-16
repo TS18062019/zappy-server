@@ -30,7 +30,7 @@ public class LanController {
             Constants.SIGN, util.sign(deviceId),
             "serverId", info.getDeviceId(),
             "serverIp", info.getServerIp(),
-            "name", "server"
+            "name", info.getHostName()
         );
     }
 }

@@ -45,10 +45,11 @@ public class MulticastPeerDiscoveryService {
         }
     }
 
-    public void beginAnnounceOnListen() {
+    public void beginAnnounceOnListen(String uiId) {
         log.info("Listening for peers...");
         InetSocketAddress addr = new InetSocketAddress(mProperties.getMulticastAddr(), mProperties.getMulticasrPort());
-        DatagramFormat broadcastDgf = new DatagramFormat(hwInfo.getDeviceId(), hwInfo.getHostName(),
+        // broadcast ui id instead of server id
+        DatagramFormat broadcastDgf = new DatagramFormat(uiId, hwInfo.getHostName(),
                 hwInfo.getServerIp());
         ByteBuffer buf = ByteBuffer.allocate(256);
         long announceInterval = mProperties.getAnnounceIntervalMs();
@@ -88,7 +89,7 @@ public class MulticastPeerDiscoveryService {
                 long currentTime = System.currentTimeMillis();
                 peerMap.entrySet().removeIf(
                         entry -> currentTime - entry.getValue().getTimestamp() >= mProperties.getNoResponseTimeOut());
-                peerMap.forEach((k, v) -> log.info("{}, {}", v.getName(), v.getIpAddr()));
+                // peerMap.forEach((k, v) -> log.info("{}, {}", v.getName(), v.getIpAddr()));
                 if (lastRecordedSize != peerMap.size())
                     log.info("{} device(s) found", peerMap.size());
                 lastRecordedSize = peerMap.size();

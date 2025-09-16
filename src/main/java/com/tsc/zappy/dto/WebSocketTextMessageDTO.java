@@ -18,5 +18,5 @@ public class WebSocketTextMessageDTO extends WebSocketTextMessage {
     private String command;
     private List<MessageDataDTO> msgData;
     private String type;
-    
+    private String sourceName;
 }
